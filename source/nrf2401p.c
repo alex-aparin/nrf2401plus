@@ -83,7 +83,7 @@ void Nrf_Init(const Nrf_GlobalOptions* const options)
 		for (int i = 0; i < pipes_count; ++i)
 		{
 			registers[REG_EN_RXADDR] |= 1 << i;
-			registers[REG_ENAA] |= TO_INT(receive_options->data_pipes[i].auto_ack) << i;
+			registers[REG_ENAA] |= receive_options->data_pipes[i].auto_ack << i;
 		}
 		registers[REG_SETUP_AW] = receive_options->address_width;
 		int dynamic_payload = 0;

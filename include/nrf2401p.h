@@ -40,10 +40,28 @@ typedef enum
 	NRF_OUT_POWER_0DBM = 0x3
 } Nrf_TransmitPower;
 
+typedef enum 
+{
+	NRF_AUTO_ACK_DISABLE = 0x0,
+	NRF_AUTO_ACK_ENABLE = 0x01
+} Nrf_AutoAckType;
+
 typedef struct 
 {
-	uint8_t auto_ack;
+/*
+		Auto acknowledge for data pipe. It will use retransmissions.
+*/
+	Nrf_AutoAckType auto_ack;
+
+/*
+		Address postfix for data pipe. It must be unique for each data pipe.
+*/
 	uint8_t addr_postfix;
+
+/*
+		Payload size for data pipe. Size lies within [0, 32] range. Default value is 32. 
+		Otherwise hardware feature (known as dynamic payload) will be used
+*/
 	uint8_t payload_size;
 } Nrf_DataPipeOptions;
 
