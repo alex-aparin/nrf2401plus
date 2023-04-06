@@ -181,14 +181,11 @@ void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options)
 			write_register(REG_FEATURE, feature_reg);
 			if (i > 1)
 			{
-				write_register(REG_RX_ADDR_P0 + i, pipe_options->addr_postfix);
+				write_register(REG_RX_ADDR_P0 + i, pipe_options->address[0]);
 			}
 			else
 			{
-				Nrf_Byte addr[5];
-				readRegister(REG_RX_ADDR_P0 + i, addr, 5);
-				addr[0] = pipe_options->addr_postfix;
-				write_register(REG_RX_ADDR_P0 + i, addr, addr_width + 2);
+				write_register(REG_RX_ADDR_P0 + i, pipe_options->address, addr_width + 2);
 			}
 			break;
 		}

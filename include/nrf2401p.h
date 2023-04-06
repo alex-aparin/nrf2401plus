@@ -62,9 +62,10 @@ typedef struct
 	Nrf_AutoAckType auto_ack;
 
 /*
-		Address postfix for data pipe. It must be unique for each data pipe.
+		Address for data pipe. It must be unique for each data pipe with the same prefix.
+		Prefix is taken into consideration only for first and second hosts.
 */
-	Nrf_Byte addr_postfix;
+	Nrf_Address address;
 
 /*
 		Payload size for data pipe. Size lies within [0, 32] range. Default value is 32. 
@@ -75,11 +76,9 @@ typedef struct
 
 typedef struct 
 {
-	Nrf_Byte addr_prefix[4];
-	Nrf_DataPipeOptions data_pipes[6];
-	Nrf_DataPipeId pipes_count;
-	Nrf_AddressWidth address_width;
-} Nrf_ReceiveOptions;
+	Nrf_Byte addr[5];
+	Nrf_Byte len;
+} Nrf_Address;
 
 typedef enum 
 {
@@ -97,7 +96,6 @@ typedef struct
 	Nrf_CNC cnc;
 	Nrf_TransmitPower power;
 	Nrf_AddressWidth address_width;
-	Nrf_ReceiveOptions* receive_settings;
 } Nrf_GlobalOptions;
 
 void Nrf_Select(Nrf_ChipSelectType select_flag);
