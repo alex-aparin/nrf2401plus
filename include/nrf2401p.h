@@ -1,6 +1,8 @@
 #ifndef NRF2401P_H_INCLUDED__
 #define NRF2401P_H_INCLUDED__
 
+typedef unsigned char Nrf_Byte;
+
 typedef enum 
 {
 	NRF_1MBPS,
@@ -14,6 +16,12 @@ typedef enum
 	NRF_CNC_1BYTE,
 	NRF_CNC_2BYTE
 } Nrf_CNC;
+
+typedef enum
+{
+	NRF_SELECT,
+	NRF_UNSELECT
+} Nrf_ChipSelectType;
 
 typedef enum 
 {
@@ -56,27 +64,22 @@ typedef struct
 /*
 		Address postfix for data pipe. It must be unique for each data pipe.
 */
-	uint8_t addr_postfix;
+	Nrf_Byte addr_postfix;
 
 /*
 		Payload size for data pipe. Size lies within [0, 32] range. Default value is 32. 
 		Otherwise hardware feature (known as dynamic payload) will be used
 */
-	uint8_t payload_size;
+	Nrf_Byte payload_size;
 } Nrf_DataPipeOptions;
 
 typedef struct 
 {
-	uint8_t addr_prefix[4];
+	Nrf_Byte addr_prefix[4];
 	Nrf_DataPipeOptions data_pipes[6];
 	Nrf_DataPipeId pipes_count;
 	Nrf_AddressWidth address_width;
 } Nrf_ReceiveOptions;
-
-typedef struct 
-{
-	Nrf_TransmitPower power;
-} Nrf_TransmitOptions;
 
 typedef enum 
 {
@@ -89,16 +92,18 @@ typedef enum
 typedef struct 
 {
 	Nrf_InterruptMask interrupt_mask;
-	uint8_t rf_channel;	//	up to 128 
+	Nrf_Byte rf_channel;	//	up to 128 
 	Nrf_DataRate data_rate;
 	Nrf_CNC cnc;
+	Nrf_TransmitPower power;
+	Nrf_AddressWidth address_width;
 	Nrf_ReceiveOptions* receive_settings;
-	Nrf_TransmitOptions* transmit_options;
 } Nrf_GlobalOptions;
 
-void Nrf_WriteSpi(uint8_t* data, uint8_t len);
-void Nrf_ReadSpi(uint8_t* data, uint8_t len);
+void Nrf_Select(Nrf_ChipSelectType select_flag);
+Nrf_Byte Nrf_WriteSpi(Nrf_Byte data);
 
 void Nrf_Init(const Nrf_GlobalOptions* const options);
+void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options);
 
 #endif

@@ -1,5 +1,6 @@
 #include "nrf2401p.h"
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
 #define TO_INT(x) ((x) ? 1 : 0)
 
 //	Commands
@@ -57,135 +58,139 @@
 
 #define REG_FEATURE_EN_DPL 2
 
-
-#define WRITE_REGISTER(reg, data, len) \ 
-send_command(COMMAND_R_REGISTER | reg, data, len);
-
-static uint8_t command_buffer[33];
-
-static void write_register(uint8_t const register, uint8_t value)
-{
-	command_buffer[0] = register | COMMAND_R_REGISTER;
-	command_buffer[1] = value;
-	Nrf_WriteSpi(command_buffer, 2);
-}
-
-static void write_register_ptr(uint8_t const register, uint8_t* data, uint8_t len)
-{
-	command_buffer[0] = register | COMMAND_R_REGISTER;
-	for (int i = 0; i < len; ++i)
-	{
-		command_buffer[i + 1] = data[i];
-	}
-	Nrf_WriteSpi(command_buffer, len + 1);
-}
-
-static void send_command(uint8_t const command, uint8_t* data, uint8_t len)
-{
-	buffer[0] = command;
-	
-}
+#define COMMAND_SIZE 1
+#define COMMAND_DATA_MAX_SIZE 5
+#define PAYLOAD_MAX_SIZE 32
+#define STATUS_SIZE 1
 
 //	NRF2401+ commands
-static void readRegister(uint8_t reg, uint8_t* const data)
+static void writeRegister(const Nrf_Byte reg, const Nrf_Byte value)
 {
+	Nrf_Select(NRF_SELECT);
+	Nrf_WriteSpi(reg | COMMAND_W_REGISTER);
+	Nrf_WriteSpi(value);
+	Nrf_Select(NRF_UNSELECT);
 }
 
-static void writeRegister(uint8_t reg, const uint8_t* const data, uint8_t len)
+static void writeRegisterPtr(const Nrf_Byte reg, Nrf_Byte* const data, const Nrf_Byte len)
 {
+	Nrf_Select(NRF_SELECT);
+	Nrf_WriteSpi(reg | COMMAND_W_REGISTER);
+	for (int i = 0; i < len; ++i)
+	{
+		Nrf_WriteSpi(data[i]);
+	}
+	Nrf_Select(NRF_UNSELECT);
 }
 
-static void readPayload(uint8_t* const data)
+static Nrf_Byte readRegister(const Nrf_Byte reg, Nrf_Byte* const data, const Nrf_Byte len)
 {
+	Nrf_Select(NRF_SELECT);
+	const Nrf_Byte status = Nrf_WriteSpi(reg | COMMAND_R_REGISTER);
+	for (int i = 0; i < len; ++i)
+	{
+		data[i] = Nrf_WriteSpi(COMMAND_NOP);
+	}
+	Nrf_Select(NRF_UNSELECT);
+	return status;
 }
 
-static void writePayload(const uint8_t* const data, uint8_t len)
+static void readPayload(Nrf_Byte* const data, const Nrf_Byte len)
 {
+	Nrf_Select(NRF_SELECT);
+	const Nrf_Byte status = Nrf_WriteSpi(COMMAND_R_RX_PAYLOAD);
+	for (int i = 0; i < len; ++i)
+	{
+		data[i] = Nrf_WriteSpi(COMMAND_NOP);
+	}
+	Nrf_Select(NRF_UNSELECT);
+}
+
+static void writePayload(Nrf_Byte* const data, const Nrf_Byte len)
+{
+	Nrf_Select(NRF_SELECT);
+	const Nrf_Byte status = Nrf_WriteSpi(COMMAND_W_TX_PAYLOAD);
+	for (int i = 0; i < len; ++i)
+	{
+		Nrf_WriteSpi(data[i]);
+	}
+	Nrf_Select(NRF_UNSELECT);
 }
 
 static void flushTxFifo()
 {
+	Nrf_Select(NRF_SELECT);
+	Nrf_WriteSpi(COMMAND_FLUSH_TX);
+	Nrf_Select(NRF_UNSELECT);
 }
 
 static void flushRxFifo()
 {
+	Nrf_Select(NRF_SELECT);
+	Nrf_WriteSpi(COMMAND_FLUSH_RX);
+	Nrf_Select(NRF_UNSELECT);
 }
-
 
 //	Global functions implementation
 void Nrf_Init(const Nrf_GlobalOptions* const options)
 {
 	if (!options)
 		return;
-	uint8_t registers[REG_FEATURE+1] = {0};
-	if (options->receive_settings)
+	write_register(REG_SETUP_AW, options->address_width);
+	write_register(REG_RF_CH, options->rf_channel & 0x7f);
+	write_register(REG_RF_SETUP, options->power | 
+		(options->data_rate == NRF_250KBPS ? 1 << REG_RF_SETUP_RF_DR_LOW : TO_INT(options->data_rate == NRF_2MPBS) << REG_RF_SETUP_RF_DR_LOW));
+	write_register(REG_CONFIG, 
+		TO_INT((options->interrupt_mask & NRF_INTERRUPT_RX) != NRF_INTERRUPT_RX) << REG_CONFIG_MASK_RX_DR | 
+		TO_INT((options->interrupt_mask & NRF_INTERRUPT_TX) != NRF_INTERRUPT_TX) << REG_CONFIG_MASK_TX_DS | 
+		TO_INT((options->interrupt_mask & NRF_INTERRUPT_MAX_RT) != NRF_INTERRUPT_MAX_RT) << REG_CONFIG_MASK_MAX_RT | 
+		TO_INT(options->cnc != NRF_CNC_NONE || registers[REG_ENAA] != 0x0) << REG_CONFIG_EN_CRC | 
+		TO_INT(options->cnc == NRF_CNC_2BYTE) << REG_CONFIG_CRCO | 
+		1 << REG_CONFIG_PWR_UP);
+}
+
+void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options)
+{
+	if (!pipe_options)
+		return;
+	Nrf_Byte pipes_reg = 0xff;
+	Nrf_Byte enabled_ack_reg = 0x0;
+	Nrf_Byte dyn_payloads_reg = 0x0;
+	Nrf_Byte feature_reg = 0x0;
+	Nrf_Byte addr_width = 0x0;
+	readRegister(REG_EN_RXADDR, &pipes_reg, 1);
+	readRegister(REG_ENAA, &enabled_ack_reg, 1);
+	readRegister(REG_DYNPD, &dyn_payloads_reg, 1);
+	readRegister(REG_FEATURE, &feature_reg, 1);
+	readRegister(REG_SETUP_AW, &addr_width, 1);
+	for (Nrf_Byte i = 0; i < 6; ++i)
 	{
-		const Nrf_ReceiveOptions* const receive_options = &options->receive_settings;
-		const int pipes_count = receive_options->pipes_count;
+		if ((pipes_reg & (1 << i)) == 0x0)
 		{
-			uint8_t enable_pipes_reg = 0;
-			uint8_t enable_ack_reg = 0;
-			for (int i = 0; i < pipes_count; ++i)
+			const Nrf_Byte dynamic_payload_flag = TO_INT(pipe_options->payload_size < 32);
+			pipes_reg |= 1 << i;
+			enabled_ack_reg &= ~(1 << i);
+			enabled_ack_reg |= pipe_options->auto_ack << i;
+			dyn_payloads_reg &= ~(1 << i);
+			dyn_payloads_reg |=  dynamic_payload_flag << i;
+			feature_reg |= dynamic_payload_flag << REG_FEATURE_EN_DPL;
+			write_register(REG_EN_RXADDR, pipes_reg);
+			write_register(REG_ENAA, pipes_reg);
+			write_register(REG_RX_PW_P0 + i, MIN(32, pipe_options->payload_size));
+			write_register(REG_DYNPD, dyn_payloads_reg);
+			write_register(REG_FEATURE, feature_reg);
+			if (i > 1)
 			{
-				enable_pipes_reg |= 1 << i;
-				enable_ack_reg |= receive_options->data_pipes[i].auto_ack << i;
-			}
-			write_register(REG_EN_RXADDR, enable_pipes_reg);
-			write_register(REG_ENAA, enable_ack_reg);
-		}
-		write_register(REG_SETUP_AW, receive_options->address_width);
-		int dynamic_payload = 0;
-		uint8_t payload_sizes_reg = 0;
-		for (int i = 0; i < pipes_count; ++i)
-		{
-			if (receive_options->data_pipes[i].payload_size < 32)
-			{
-				dynamic_payload = 1;
-				write_register_ptr(REG_RX_PW_P0 +i, receive_options->data_pipes[i].payload_size);
-				payload_sizes_reg |= 1 << i;
+				write_register(REG_RX_ADDR_P0 + i, pipe_options->addr_postfix);
 			}
 			else
 			{
-				write_register_ptr(REG_RX_PW_P0 +i, 32);
+				Nrf_Byte addr[5];
+				readRegister(REG_RX_ADDR_P0 + i, addr, 5);
+				addr[0] = pipe_options->addr_postfix;
+				write_register(REG_RX_ADDR_P0 + i, addr, addr_width + 2);
 			}
-			if (i == 0 || i == 1)
-			{
-				uint8_t addr[5];
-				addr[0] = receive_options->data_pipes[i].addr_postfix;
-				addr[1] = receive_options->addr_prefix[0];
-				addr[2] = receive_options->addr_prefix[1];
-				addr[3] = receive_options->addr_prefix[2];
-				addr[4] = receive_options->addr_prefix[3];
-				write_register_ptr(REG_RX_ADDR_P0 + i, addr, 5);
-				continue;
-			}
-			write_register(REG_RX_ADDR_P0 + i, receive_options->data_pipes[i].addr_postfix);
+			break;
 		}
-		write_register(REG_DYNPD, payload_sizes_reg);
-		write_register(REG_FEATURE, TO_INT(dynamic_payload) << REG_FEATURE_EN_DPL);
-	}
-
-	{
-		uint8_t config_reg = 0x0;
-		config_reg |= TO_INT((options->interrupt_mask & NRF_INTERRUPT_RX) != NRF_INTERRUPT_RX) << REG_CONFIG_MASK_RX_DR;
-		config_reg |= TO_INT((options->interrupt_mask & NRF_INTERRUPT_TX) != NRF_INTERRUPT_TX) << REG_CONFIG_MASK_TX_DS;
-		config_reg |= TO_INT((options->interrupt_mask & NRF_INTERRUPT_MAX_RT) != NRF_INTERRUPT_MAX_RT) << REG_CONFIG_MASK_MAX_RT;
-		config_reg |= TO_INT(options->cnc != NRF_CNC_NONE || registers[REG_ENAA] != 0x0) << REG_CONFIG_EN_CRC;
-		config_reg |= TO_INT(options->cnc == NRF_CNC_2BYTE) << REG_CONFIG_CRCO;
-		config_reg |= 1 << REG_CONFIG_PWR_UP;
-		write_register(REG_CONFIG, config_reg)
-	}
-	write_register(REG_RF_CH, options->rf_channel & 0x7f);
-	{
-		uint8_t rf_setup_register = options->transmit_options ? options->transmit_options.power : 0x3; 
-		if (options->data_rate == NRF_250KBPS)
-		{
-			rf_setup_register |= 1 << REG_RF_SETUP_RF_DR_LOW;
-		}
-		else
-		{
-			rf_setup_register |= TO_INT(options->data_rate == NRF_2MPBS) << REG_RF_SETUP_RF_DR_LOW;
-		}
-		write_register(REG_RF_SETUP, rf_setup_register);
 	}
 }
