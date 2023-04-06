@@ -136,11 +136,11 @@ void Nrf_Init(const Nrf_GlobalOptions* const options)
 {
 	if (!options)
 		return;
-	write_register(REG_SETUP_AW, options->address_width);
-	write_register(REG_RF_CH, options->rf_channel & 0x7f);
-	write_register(REG_RF_SETUP, options->power | 
+	writeRegister(REG_SETUP_AW, options->address_width);
+	writeRegister(REG_RF_CH, options->rf_channel & 0x7f);
+	writeRegister(REG_RF_SETUP, options->power | 
 		(options->data_rate == NRF_250KBPS ? 1 << REG_RF_SETUP_RF_DR_LOW : TO_INT(options->data_rate == NRF_2MPBS) << REG_RF_SETUP_RF_DR_LOW));
-	write_register(REG_CONFIG, 
+	writeRegister(REG_CONFIG, 
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_RX) != NRF_INTERRUPT_RX) << REG_CONFIG_MASK_RX_DR | 
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_TX) != NRF_INTERRUPT_TX) << REG_CONFIG_MASK_TX_DS | 
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_MAX_RT) != NRF_INTERRUPT_MAX_RT) << REG_CONFIG_MASK_MAX_RT | 
@@ -174,20 +174,32 @@ void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options)
 			dyn_payloads_reg &= ~(1 << i);
 			dyn_payloads_reg |=  dynamic_payload_flag << i;
 			feature_reg |= dynamic_payload_flag << REG_FEATURE_EN_DPL;
-			write_register(REG_EN_RXADDR, pipes_reg);
-			write_register(REG_ENAA, pipes_reg);
-			write_register(REG_RX_PW_P0 + i, MIN(32, pipe_options->payload_size));
-			write_register(REG_DYNPD, dyn_payloads_reg);
-			write_register(REG_FEATURE, feature_reg);
+			writeRegister(REG_EN_RXADDR, pipes_reg);
+			writeRegister(REG_ENAA, pipes_reg);
+			writeRegister(REG_RX_PW_P0 + i, MIN(32, pipe_options->payload_size));
+			writeRegister(REG_DYNPD, dyn_payloads_reg);
+			writeRegister(REG_FEATURE, feature_reg);
 			if (i > 1)
 			{
-				write_register(REG_RX_ADDR_P0 + i, pipe_options->address[0]);
+				writeRegister(REG_RX_ADDR_P0 + i, pipe_options->address[0]);
 			}
 			else
 			{
-				write_register(REG_RX_ADDR_P0 + i, pipe_options->address, addr_width + 2);
+				writeRegister(REG_RX_ADDR_P0 + i, pipe_options->address, addr_width + 2);
 			}
 			break;
 		}
 	}
+}
+
+void Nrf_Transmit(const Nrf_Byte* const data, const Nrf_Byte len, const Nrf_Address* tx_address)
+{
+	if (!data)
+		return;
+	if (tx_address)
+	{
+		writeRegisterPtr(REG_TX_ADDR, tx_address->addr, tx_address->len);
+	}
+	writePayload(data, len);
+	Nrf_PulseChipEnable();
 }

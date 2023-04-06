@@ -98,10 +98,12 @@ typedef struct
 	Nrf_AddressWidth address_width;
 } Nrf_GlobalOptions;
 
+void Nrf_PulseChipEnable();
 void Nrf_Select(Nrf_ChipSelectType select_flag);
 Nrf_Byte Nrf_WriteSpi(Nrf_Byte data);
 
 void Nrf_Init(const Nrf_GlobalOptions* const options);
 void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options);
+void Nrf_Transmit(const Nrf_Byte* const data, const Nrf_Byte len, const Nrf_Address* tx_address);
 
 #endif
