@@ -98,12 +98,32 @@ typedef struct
 	Nrf_AddressWidth address_width;
 } Nrf_GlobalOptions;
 
+typedef enum
+{
+	NRF_SLEEP = 0x0,
+	NRF_TRASMITTER = 0x1,
+	NRF_RECEIVER = 0x2
+} Nrf_Mode;
+
+typedef enum
+{
+	NRF_NONE = 0x0,
+	NRF_PACKET_ARRIVED = 0x2,
+	NRF_PACKET_SENT = 0x4,
+	NRF_MAX_RETRANSMITS = 0x8,
+	NRF_TX_FIFO_FULL = 0x10
+} Nrf_Status;
+
 void Nrf_PulseChipEnable();
 void Nrf_Select(Nrf_ChipSelectType select_flag);
 Nrf_Byte Nrf_WriteSpi(Nrf_Byte data);
 
 void Nrf_Init(const Nrf_GlobalOptions* const options);
 void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options);
+void Nrf_SetMode(const Nrf_Mode);
 void Nrf_Transmit(const Nrf_Byte* const data, const Nrf_Byte len, const Nrf_Address* tx_address);
+Nrf_Byte Nrf_Receive(Nrf_Byte* const data, Nrf_Byte* len, Nrf_Byte* pipe_number);
+Nrf_Status Nrf_GetStatus();
+void Nrf_ClearStatus();
 
 #endif

@@ -58,6 +58,13 @@
 
 #define REG_FEATURE_EN_DPL 2
 
+#define REG_STATUS_RX_DR_MASK (1 << 6)
+#define REG_STATUS_TX_DS_MASK (1 << 5)
+#define REG_STATUS_MAX_RT_MASK (1 << 4)
+#define REG_STATUS_RX_P_NO_MASK 0xe
+
+#define REG_FIFO_STATUS_RX_EMPTY_MASK 0x1
+
 #define COMMAND_SIZE 1
 #define COMMAND_DATA_MAX_SIZE 5
 #define PAYLOAD_MAX_SIZE 32
@@ -145,8 +152,7 @@ void Nrf_Init(const Nrf_GlobalOptions* const options)
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_TX) != NRF_INTERRUPT_TX) << REG_CONFIG_MASK_TX_DS | 
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_MAX_RT) != NRF_INTERRUPT_MAX_RT) << REG_CONFIG_MASK_MAX_RT | 
 		TO_INT(options->cnc != NRF_CNC_NONE || registers[REG_ENAA] != 0x0) << REG_CONFIG_EN_CRC | 
-		TO_INT(options->cnc == NRF_CNC_2BYTE) << REG_CONFIG_CRCO | 
-		1 << REG_CONFIG_PWR_UP);
+		TO_INT(options->cnc == NRF_CNC_2BYTE) << REG_CONFIG_CRCO);
 }
 
 void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options)
@@ -202,4 +208,44 @@ void Nrf_Transmit(const Nrf_Byte* const data, const Nrf_Byte len, const Nrf_Addr
 	}
 	writePayload(data, len);
 	Nrf_PulseChipEnable();
+}
+
+Nrf_Status Nrf_GetStatus()
+{
+	Nrf_Status res = NRF_NONE;
+	Nrf_Status status = readRegister(REG_STATUS, 0, 0);
+	if ((status & REG_STATUS_RX_DR_MASK) == REG_STATUS_RX_DR_MASK)
+		res |= NRF_PACKET_ARRIVED;
+	if ((status & REG_STATUS_TX_DS_MASK) == REG_STATUS_TX_DS_MASK)
+		res |= NRF_PACKET_SENT;
+	if ((status & REG_STATUS_MAX_RT_MASK) == REG_STATUS_MAX_RT_MASK)
+		res |= NRF_TX_FIFO_FULL;
+	return res;
+}
+
+void Nrf_ClearStatus()
+{
+	writeRegister(REG_STATUS_RX_P_NO_MASK | REG_STATUS_RX_DR_MASK | REG_STATUS_TX_DS_MASK | REG_STATUS_MAX_RT_MASK);
+}
+
+void Nrf_SetMode(const Nrf_Mode mode)
+{
+	Nrf_Byte config_reg = 0x0;
+	readRegister(REG_CONFIG, &config_reg, 1);
+	writeRegister(config_reg & (~0x3) | mode);
+}
+
+Nrf_Byte Nrf_Receive(Nrf_Byte* const data, Nrf_Byte* len, Nrf_Byte* pipe_number)
+{
+	const Nrf_Byte status = readRegister(REG_STATUS, 0, 0);
+	Nrf_Byte fifo_status = 0x0;
+	readRegister(REG_FIFO_STATUS, &fifo_status, 1);
+	if ((status & REG_STATUS_RX_DR_MASK) == REG_STATUS_RX_DR_MASK || (fifo_status & REG_FIFO_STATUS_RX_EMPTY_MASK) == 0x0)
+	{
+		*pipe_number = (status & REG_STATUS_RX_P_NO_MASK) >> 1;
+		readRegister(REG_RX_ADDR_P0 + *pipe_number, len, 1);
+		readPayload(data, *len);
+		return 0x1;
+	}
+	return 0x0;
 }
