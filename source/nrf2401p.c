@@ -79,7 +79,7 @@ static void writeRegister(const Nrf_Byte reg, const Nrf_Byte value)
 	Nrf_Select(NRF_UNSELECT);
 }
 
-static void writeRegisterPtr(const Nrf_Byte reg, Nrf_Byte* const data, const Nrf_Byte len)
+static void writeRegisterPtr(const Nrf_Byte reg, const Nrf_Byte* const data, const Nrf_Byte len)
 {
 	Nrf_Select(NRF_SELECT);
 	Nrf_WriteSpi(reg | COMMAND_W_REGISTER);
@@ -105,7 +105,7 @@ static Nrf_Byte readRegister(const Nrf_Byte reg, Nrf_Byte* const data, const Nrf
 static void readPayload(Nrf_Byte* const data, const Nrf_Byte len)
 {
 	Nrf_Select(NRF_SELECT);
-	const Nrf_Byte status = Nrf_WriteSpi(COMMAND_R_RX_PAYLOAD);
+	Nrf_WriteSpi(COMMAND_R_RX_PAYLOAD);
 	for (int i = 0; i < len; ++i)
 	{
 		data[i] = Nrf_WriteSpi(COMMAND_NOP);
@@ -113,10 +113,10 @@ static void readPayload(Nrf_Byte* const data, const Nrf_Byte len)
 	Nrf_Select(NRF_UNSELECT);
 }
 
-static void writePayload(Nrf_Byte* const data, const Nrf_Byte len)
+static void writePayload(const Nrf_Byte* const data, const Nrf_Byte len)
 {
 	Nrf_Select(NRF_SELECT);
-	const Nrf_Byte status = Nrf_WriteSpi(COMMAND_W_TX_PAYLOAD);
+	Nrf_WriteSpi(COMMAND_W_TX_PAYLOAD);
 	for (int i = 0; i < len; ++i)
 	{
 		Nrf_WriteSpi(data[i]);
@@ -124,19 +124,7 @@ static void writePayload(Nrf_Byte* const data, const Nrf_Byte len)
 	Nrf_Select(NRF_UNSELECT);
 }
 
-static void flushTxFifo()
-{
-	Nrf_Select(NRF_SELECT);
-	Nrf_WriteSpi(COMMAND_FLUSH_TX);
-	Nrf_Select(NRF_UNSELECT);
-}
 
-static void flushRxFifo()
-{
-	Nrf_Select(NRF_SELECT);
-	Nrf_WriteSpi(COMMAND_FLUSH_RX);
-	Nrf_Select(NRF_UNSELECT);
-}
 
 //	Global functions implementation
 void Nrf_Init(const Nrf_GlobalOptions* const options)
@@ -151,7 +139,7 @@ void Nrf_Init(const Nrf_GlobalOptions* const options)
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_RX) != NRF_INTERRUPT_RX) << REG_CONFIG_MASK_RX_DR | 
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_TX) != NRF_INTERRUPT_TX) << REG_CONFIG_MASK_TX_DS | 
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_MAX_RT) != NRF_INTERRUPT_MAX_RT) << REG_CONFIG_MASK_MAX_RT | 
-		TO_INT(options->cnc != NRF_CNC_NONE || registers[REG_ENAA] != 0x0) << REG_CONFIG_EN_CRC | 
+		TO_INT(options->cnc != NRF_CNC_NONE) << REG_CONFIG_EN_CRC | 
 		TO_INT(options->cnc == NRF_CNC_2BYTE) << REG_CONFIG_CRCO);
 }
 
@@ -187,11 +175,11 @@ void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options)
 			writeRegister(REG_FEATURE, feature_reg);
 			if (i > 1)
 			{
-				writeRegister(REG_RX_ADDR_P0 + i, pipe_options->address[0]);
+				writeRegister(REG_RX_ADDR_P0 + i, pipe_options->address.addr[0]);
 			}
 			else
 			{
-				writeRegister(REG_RX_ADDR_P0 + i, pipe_options->address, addr_width + 2);
+				writeRegisterPtr(REG_RX_ADDR_P0 + i, pipe_options->address.addr, addr_width + 2);
 			}
 			break;
 		}
@@ -225,14 +213,14 @@ Nrf_Status Nrf_GetStatus()
 
 void Nrf_ClearStatus()
 {
-	writeRegister(REG_STATUS_RX_P_NO_MASK | REG_STATUS_RX_DR_MASK | REG_STATUS_TX_DS_MASK | REG_STATUS_MAX_RT_MASK);
+	writeRegister(REG_STATUS, REG_STATUS_RX_P_NO_MASK | REG_STATUS_RX_DR_MASK | REG_STATUS_TX_DS_MASK | REG_STATUS_MAX_RT_MASK);
 }
 
 void Nrf_SetMode(const Nrf_Mode mode)
 {
 	Nrf_Byte config_reg = 0x0;
 	readRegister(REG_CONFIG, &config_reg, 1);
-	writeRegister(config_reg & (~0x3) | mode);
+	writeRegister(REG_CONFIG, (config_reg & (~0x3)) | mode);
 }
 
 Nrf_Byte Nrf_Receive(Nrf_Byte* const data, Nrf_Byte* len, Nrf_Byte* pipe_number)
@@ -248,4 +236,18 @@ Nrf_Byte Nrf_Receive(Nrf_Byte* const data, Nrf_Byte* len, Nrf_Byte* pipe_number)
 		return 0x1;
 	}
 	return 0x0;
+}
+
+void Nrf_FlushTxFifo()
+{
+	Nrf_Select(NRF_SELECT);
+	Nrf_WriteSpi(COMMAND_FLUSH_TX);
+	Nrf_Select(NRF_UNSELECT);
+}
+
+void Nrf_FlushRxFifo()
+{
+	Nrf_Select(NRF_SELECT);
+	Nrf_WriteSpi(COMMAND_FLUSH_RX);
+	Nrf_Select(NRF_UNSELECT);
 }

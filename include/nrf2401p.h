@@ -56,6 +56,12 @@ typedef enum
 
 typedef struct 
 {
+	Nrf_Byte addr[5];
+	Nrf_Byte len;
+} Nrf_Address;
+
+typedef struct 
+{
 /*
 		Auto acknowledge for data pipe. It will use retransmissions.
 */
@@ -74,11 +80,7 @@ typedef struct
 	Nrf_Byte payload_size;
 } Nrf_DataPipeOptions;
 
-typedef struct 
-{
-	Nrf_Byte addr[5];
-	Nrf_Byte len;
-} Nrf_Address;
+
 
 typedef enum 
 {
@@ -125,5 +127,7 @@ void Nrf_Transmit(const Nrf_Byte* const data, const Nrf_Byte len, const Nrf_Addr
 Nrf_Byte Nrf_Receive(Nrf_Byte* const data, Nrf_Byte* len, Nrf_Byte* pipe_number);
 Nrf_Status Nrf_GetStatus();
 void Nrf_ClearStatus();
+void Nrf_FlushTxFifo();
+void Nrf_FlushRxFifo();
 
 #endif
