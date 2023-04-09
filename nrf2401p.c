@@ -74,55 +74,55 @@
 //	NRF2401+ commands
 static void writeRegister(const Nrf_Byte reg, const Nrf_Byte value)
 {
-	Nrf_Select(NRF_SELECT);
+	Nrf_SPISelect(NRF_SPI_SELECT);
 	Nrf_WriteSpi(reg | COMMAND_W_REGISTER);
 	Nrf_WriteSpi(value);
-	Nrf_Select(NRF_UNSELECT);
+	Nrf_SPISelect(NRF_SPI_UNSELECT);
 }
 
 static void writeRegisterPtr(const Nrf_Byte reg, const Nrf_Byte* const data, const Nrf_Byte len)
 {
-	Nrf_Select(NRF_SELECT);
+	Nrf_SPISelect(NRF_SPI_SELECT);
 	Nrf_WriteSpi(reg | COMMAND_W_REGISTER);
 	for (int i = 0; i < len; ++i)
 	{
 		Nrf_WriteSpi(data[i]);
 	}
-	Nrf_Select(NRF_UNSELECT);
+	Nrf_SPISelect(NRF_SPI_UNSELECT);
 }
 
 static Nrf_Byte readRegister(const Nrf_Byte reg, Nrf_Byte* const data, const Nrf_Byte len)
 {
-	Nrf_Select(NRF_SELECT);
+	Nrf_SPISelect(NRF_SPI_SELECT);
 	const Nrf_Byte status = Nrf_WriteSpi(reg | COMMAND_R_REGISTER);
 	for (int i = 0; i < len; ++i)
 	{
 		data[i] = Nrf_WriteSpi(COMMAND_NOP);
 	}
-	Nrf_Select(NRF_UNSELECT);
+	Nrf_SPISelect(NRF_SPI_UNSELECT);
 	return status;
 }
 
 static void readPayload(Nrf_Byte* const data, const Nrf_Byte len)
 {
-	Nrf_Select(NRF_SELECT);
+	Nrf_SPISelect(NRF_SPI_SELECT);
 	Nrf_WriteSpi(COMMAND_R_RX_PAYLOAD);
 	for (int i = 0; i < len; ++i)
 	{
 		data[i] = Nrf_WriteSpi(COMMAND_NOP);
 	}
-	Nrf_Select(NRF_UNSELECT);
+	Nrf_SPISelect(NRF_SPI_UNSELECT);
 }
 
 static void writePayload(const Nrf_Byte* const data, const Nrf_Byte len)
 {
-	Nrf_Select(NRF_SELECT);
+	Nrf_SPISelect(NRF_SPI_SELECT);
 	Nrf_WriteSpi(COMMAND_W_TX_PAYLOAD);
 	for (int i = 0; i < len; ++i)
 	{
 		Nrf_WriteSpi(data[i]);
 	}
-	Nrf_Select(NRF_UNSELECT);
+	Nrf_SPISelect(NRF_SPI_UNSELECT);
 }
 
 
@@ -132,6 +132,7 @@ void Nrf_Init(const Nrf_GlobalOptions* const options)
 {
 	if (!options)
 		return;
+	Nrf_ChipEnable(NRF_CHIP_DISABLE);
 	writeRegister(REG_EN_RXADDR, 0x0);
 	writeRegister(REG_ENAA, 0x0);	//	Disabling all autoacknowledges by default
 	writeRegister(REG_SETUP_AW, options->address_width);
@@ -199,11 +200,24 @@ void Nrf_Transmit(const Nrf_Byte* const data, const Nrf_Byte len, const Nrf_Addr
 		writeRegisterPtr(REG_TX_ADDR, tx_address->addr, tx_address->len);
 	}
 	writePayload(data, len);
-	Nrf_PulseChipEnable();
+	Nrf_ChipEnable(NRF_CHIP_ENABLE_PULSE);
 }
 
 Nrf_Status Nrf_GetStatus()
 {
+	Nrf_Byte pipes_reg = 0xff;
+	Nrf_Byte enabled_ack_reg = 0x0;
+	Nrf_Byte dyn_payloads_reg = 0x0;
+	Nrf_Byte feature_reg = 0x0;
+	Nrf_Byte addr_width = 0x0;
+	Nrf_Byte config = 0x0;
+	readRegister(REG_CONFIG, &config, 1);
+	readRegister(REG_EN_RXADDR, &pipes_reg, 1);
+	readRegister(REG_ENAA, &enabled_ack_reg, 1);
+	readRegister(REG_DYNPD, &dyn_payloads_reg, 1);
+	readRegister(REG_FEATURE, &feature_reg, 1);
+	readRegister(REG_SETUP_AW, &addr_width, 1);
+
 	Nrf_Status res = NRF_NONE;
 	Nrf_Byte status = readRegister(REG_STATUS, 0, 0);
 	if ((status & REG_STATUS_RX_DR_MASK) == REG_STATUS_RX_DR_MASK)
@@ -227,6 +241,8 @@ void Nrf_SetMode(const Nrf_Mode mode)
 	Nrf_Byte config_reg = 0x0;
 	readRegister(REG_CONFIG, &config_reg, 1);
 	writeRegister(REG_CONFIG, (config_reg & (~0x3)) | mode);
+	if (mode == NRF_RECEIVER)
+		Nrf_ChipEnable(NRF_CHIP_ENABLE);
 }
 
 Nrf_Byte Nrf_Receive(Nrf_Byte* const data, Nrf_Byte* len, Nrf_Byte* pipe_number)
@@ -237,7 +253,7 @@ Nrf_Byte Nrf_Receive(Nrf_Byte* const data, Nrf_Byte* len, Nrf_Byte* pipe_number)
 	if ((status & REG_STATUS_RX_DR_MASK) == REG_STATUS_RX_DR_MASK || (fifo_status & REG_FIFO_STATUS_RX_EMPTY_MASK) == 0x0)
 	{
 		*pipe_number = (status & REG_STATUS_RX_P_NO_MASK) >> 1;
-		readRegister(REG_RX_ADDR_P0 + *pipe_number, len, 1);
+		readRegister(REG_RX_PW_P0 + *pipe_number, len, 1);
 		readPayload(data, *len);
 		return 0x1;
 	}
@@ -246,14 +262,14 @@ Nrf_Byte Nrf_Receive(Nrf_Byte* const data, Nrf_Byte* len, Nrf_Byte* pipe_number)
 
 void Nrf_FlushTxFifo()
 {
-	Nrf_Select(NRF_SELECT);
+	Nrf_SPISelect(NRF_SPI_SELECT);
 	Nrf_WriteSpi(COMMAND_FLUSH_TX);
-	Nrf_Select(NRF_UNSELECT);
+	Nrf_SPISelect(NRF_SPI_UNSELECT);
 }
 
 void Nrf_FlushRxFifo()
 {
-	Nrf_Select(NRF_SELECT);
+	Nrf_SPISelect(NRF_SPI_SELECT);
 	Nrf_WriteSpi(COMMAND_FLUSH_RX);
-	Nrf_Select(NRF_UNSELECT);
+	Nrf_SPISelect(NRF_SPI_UNSELECT);
 }

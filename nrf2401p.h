@@ -19,9 +19,16 @@ typedef enum
 
 typedef enum
 {
-	NRF_SELECT,
-	NRF_UNSELECT
-} Nrf_ChipSelectType;
+	NRF_SPI_SELECT,
+	NRF_SPI_UNSELECT
+} Nrf_SPISelectType;
+
+typedef enum
+{
+	NRF_CHIP_ENABLE,
+	NRF_CHIP_ENABLE_PULSE,
+	NRF_CHIP_DISABLE
+} Nrf_ChipEnableType;
 
 typedef enum 
 {
@@ -117,7 +124,10 @@ typedef enum
 } Nrf_Status;
 
 void Nrf_PulseChipEnable();
-void Nrf_Select(Nrf_ChipSelectType select_flag);
+void Nrf_ChipEnable(Nrf_ChipEnableType enable_flag);
+void Nrf_SPISelect(Nrf_SPISelectType select_flag);
+
+
 Nrf_Byte Nrf_WriteSpi(Nrf_Byte data);
 
 /*
