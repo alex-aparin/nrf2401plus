@@ -136,8 +136,9 @@ void Nrf_Init(const Nrf_GlobalOptions* const options)
 	writeRegister(REG_ENAA, 0x0);	//	Disabling all autoacknowledges by default
 	writeRegister(REG_SETUP_AW, options->address_width);
 	writeRegister(REG_RF_CH, options->rf_channel & 0x7f);
-	writeRegister(REG_RF_SETUP, options->power | 
-		(options->data_rate == NRF_250KBPS ? 1 << REG_RF_SETUP_RF_DR_LOW : TO_INT(options->data_rate == NRF_2MPBS) << REG_RF_SETUP_RF_DR_LOW));
+	writeRegister(REG_RF_SETUP, (options->power << 1) | 
+		(options->data_rate == NRF_250KBPS ? 1 << REG_RF_SETUP_RF_DR_LOW : 
+			TO_INT(options->data_rate == NRF_2MPBS) << REG_RF_SETUP_RF_DR_HIGH));
 	writeRegister(REG_CONFIG, 
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_RX) != NRF_INTERRUPT_RX) << REG_CONFIG_MASK_RX_DR | 
 		TO_INT((options->interrupt_mask & NRF_INTERRUPT_TX) != NRF_INTERRUPT_TX) << REG_CONFIG_MASK_TX_DS | 
@@ -172,7 +173,7 @@ void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options)
 			dyn_payloads_reg |=  dynamic_payload_flag << i;
 			feature_reg |= dynamic_payload_flag << REG_FEATURE_EN_DPL;
 			writeRegister(REG_EN_RXADDR, pipes_reg);
-			writeRegister(REG_ENAA, pipes_reg);
+			writeRegister(REG_ENAA, enabled_ack_reg);
 			writeRegister(REG_RX_PW_P0 + i, MIN(32, pipe_options->payload_size));
 			writeRegister(REG_DYNPD, dyn_payloads_reg);
 			writeRegister(REG_FEATURE, feature_reg);
