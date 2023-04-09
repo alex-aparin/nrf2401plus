@@ -131,6 +131,7 @@ void Nrf_Init(const Nrf_GlobalOptions* const options)
 {
 	if (!options)
 		return;
+	writeRegister(REG_ENAA, 0x0);	//	Disabling all autoacknowledges by default
 	writeRegister(REG_SETUP_AW, options->address_width);
 	writeRegister(REG_RF_CH, options->rf_channel & 0x7f);
 	writeRegister(REG_RF_SETUP, options->power | 

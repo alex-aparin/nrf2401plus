@@ -120,6 +120,14 @@ void Nrf_PulseChipEnable();
 void Nrf_Select(Nrf_ChipSelectType select_flag);
 Nrf_Byte Nrf_WriteSpi(Nrf_Byte data);
 
+/*
+		Initializes nrf2401+ device
+		Params: global options for device
+		Return: none
+		
+		NOTE: it's important to keep period ~100ms since powering nrfdevice. This is needed for transfering device into POWER DOWN state.
+		Otherwise device will not be configured properly.
+*/
 void Nrf_Init(const Nrf_GlobalOptions* const options);
 void Nrf_AddPipe(const Nrf_DataPipeOptions* const pipe_options);
 void Nrf_SetMode(const Nrf_Mode);
