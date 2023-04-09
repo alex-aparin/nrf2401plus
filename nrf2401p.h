@@ -103,8 +103,8 @@ typedef struct
 typedef enum
 {
 	NRF_SLEEP = 0x0,
-	NRF_TRASMITTER = 0x1,
-	NRF_RECEIVER = 0x2
+	NRF_TRASMITTER = 0x2,
+	NRF_RECEIVER = 0x3
 } Nrf_Mode;
 
 typedef enum

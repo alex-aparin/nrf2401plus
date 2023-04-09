@@ -61,6 +61,7 @@
 #define REG_STATUS_RX_DR_MASK (1 << 6)
 #define REG_STATUS_TX_DS_MASK (1 << 5)
 #define REG_STATUS_MAX_RT_MASK (1 << 4)
+#define REG_STATUS_TX_FULL_MASK (1)
 #define REG_STATUS_RX_P_NO_MASK 0xe
 
 #define REG_FIFO_STATUS_RX_EMPTY_MASK 0x1
@@ -131,6 +132,7 @@ void Nrf_Init(const Nrf_GlobalOptions* const options)
 {
 	if (!options)
 		return;
+	writeRegister(REG_EN_RXADDR, 0x0);
 	writeRegister(REG_ENAA, 0x0);	//	Disabling all autoacknowledges by default
 	writeRegister(REG_SETUP_AW, options->address_width);
 	writeRegister(REG_RF_CH, options->rf_channel & 0x7f);
@@ -202,12 +204,14 @@ void Nrf_Transmit(const Nrf_Byte* const data, const Nrf_Byte len, const Nrf_Addr
 Nrf_Status Nrf_GetStatus()
 {
 	Nrf_Status res = NRF_NONE;
-	Nrf_Status status = readRegister(REG_STATUS, 0, 0);
+	Nrf_Byte status = readRegister(REG_STATUS, 0, 0);
 	if ((status & REG_STATUS_RX_DR_MASK) == REG_STATUS_RX_DR_MASK)
 		res |= NRF_PACKET_ARRIVED;
 	if ((status & REG_STATUS_TX_DS_MASK) == REG_STATUS_TX_DS_MASK)
 		res |= NRF_PACKET_SENT;
 	if ((status & REG_STATUS_MAX_RT_MASK) == REG_STATUS_MAX_RT_MASK)
+		res |= NRF_MAX_RETRANSMITS;
+	if ((status & REG_STATUS_TX_FULL_MASK) == REG_STATUS_TX_FULL_MASK)
 		res |= NRF_TX_FIFO_FULL;
 	return res;
 }
